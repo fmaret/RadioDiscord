@@ -1,0 +1,6 @@
+__pycache__
+*.json
+*.mp3
+test.py
+chansons
+ffmpeg
