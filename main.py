@@ -42,6 +42,7 @@ youtube = build('youtube', 'v3', developerKey=YT_API_KEY)
 queue = []
 
 
+
 '''
 * Classes
 '''
@@ -59,15 +60,14 @@ class Musique():
 
 #tests
 
-# l="https://www.youtube.com/watch?v=nBI0bDH8W28&list=PLlv1wuE2aMi__xQcsEiBimc_4qZQyQW8Z&index=1" #lien de la video seule qui lance la playlist
-# id="PLlv1wuE2aMi__xQcsEiBimc_4qZQyQW8Z" #id de cette vidéo
-# playlistId="PLlv1wuE2aMi__xQcsEiBimc_4qZQyQW8Z" #id de la playlist complete
-# request=youtube.playlistItems().list(
-#         part="snippet",
-#         id=id,
-#         maxResults="50")
-# response = request.execute()
-# print(response)
+#l="https://www.youtube.com/watch?v=nBI0bDH8W28&list=PLlv1wuE2aMi__xQcsEiBimc_4qZQyQW8Z&index=1" #lien de la video seule qui lance la playlist
+#id="PLlv1wuE2aMi__xQcsEiBimc_4qZQyQW8Z" #id de cette vidéo
+#playlistId="PLun_CS7whKh6quHrLiNrApbDBq-EOspBc" #id de la playlist complete
+#request=youtube.playlists().list(
+#        part="snippet",
+#        id=playlistId,
+#        maxResults="50")
+#response = request.execute()
 
 #fin tests
 
@@ -76,16 +76,14 @@ async def on_ready():
     removeMP3s()
     print("Le bot est prêt !")
     await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="vos instructions"))
-    await bot.user.edit(nick="test")
 
-def addPlaylistToQueue(url:str):
+def addPlaylistToQueue(url:str): #return le nom de la playlist
     plid = url.split("playlist?list=",1)[1]
     print(plid) 
     request = youtube.playlistItems().list(
         part="snippet",
         playlistId=plid,
         maxResults="50")
-
     response = request.execute()
 
     liens = []
@@ -96,6 +94,14 @@ def addPlaylistToQueue(url:str):
     for lien in liens:
         queue.append(Musique("https://www.youtube.com/watch?v="+lien))
 
+    #Récupérer le nom de la playlist
+    request=youtube.playlists().list(
+        part="snippet",
+        id=plid,
+        maxResults="50")
+    response = request.execute()
+    return response['items'][0]['snippet']['title']
+
 @bot.command()
 async def play(ctx:Context, url:str, channel:str = "General"):
     if not any(url.startswith(YT_LINK) for YT_LINK in YOUTUBE_LINKS):
@@ -103,12 +109,16 @@ async def play(ctx:Context, url:str, channel:str = "General"):
         return
     
     if "playlist?list" in url: #on a mis une playlist
-        await ctx.send("Eeeet zééééparti pour la playlist")
-        addPlaylistToQueue(url)
+        nomPlaylist = addPlaylistToQueue(url)
+        await ctx.send("Ajout de la playlist : "+nomPlaylist)
     elif "&list" in url:  #on a mis une seule musique mais elle a une playlist dans le lien
-        queue.append(Musique(url.split("&list")[0])) 
+        m=Musique(url.split("&list")[0])
+        queue.append(m) 
+        await ctx.send("Ajout de la musique : "+m.videoName)
     else: 
-        queue.append(Musique(url))
+        m=Musique(url)
+        queue.append(m)
+        await ctx.send("Ajout de la musique : "+m.videoName)
 
     voiceChannel = discord.utils.get(ctx.guild.voice_channels, name=channel)
     voice = discord.utils.get(bot.voice_clients, guild=ctx.guild)
@@ -136,7 +146,7 @@ def play_next(ctx:Context):
             return
 
         if not vc.is_playing():
-            asyncio.run_coroutine_threadsafe(ctx.send("No more songs in queue."), bot.loop)
+            asyncio.run_coroutine_threadsafe(ctx.send("Il n'y a plus de musique dans la queue."), bot.loop)
             asyncio.run_coroutine_threadsafe(bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="vos instructions")), bot.loop)
         return
 

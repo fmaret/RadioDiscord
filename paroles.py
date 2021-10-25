@@ -14,7 +14,23 @@ api = genius.Genius(geniusCreds)
 #     os.getcwd()
 #     art.save_lyrics()
 
-searchs = ["Patrick Sébastien", "mili camellia","GIGA","Vianney : Pour de vrai","Other side of the wall","100 % Johnny Live A La Tour Eiffel En Intégralité 720p"]
+#searchs = ["Patrick Sébastien", "mili camellia","GIGA","Vianney : Pour de vrai","Other side of the wall","100 % Johnny Live A La Tour Eiffel En Intégralité 720p"]
+
+searchs = ["Début de Soiree - Nuit de Folie - Clip Officiel", "Images - Les Démons de Minuit", "Desireless - Voyage Voyage", "Indochine - J'ai demandé à la lune (Clip officiel)"]
+
+#filtrage des noms
+
+motsAFiltrer = ["clip officiel"]
+
+for i,s in enumerate(searchs):
+    for m in motsAFiltrer:
+        if m in s.lower():
+            indice=s.lower().find(m)
+            searchs[i]=s[0:indice]+s[indice+len(m):]
+
+print(searchs)
+
+#fin du filtrage
 
 for search in searchs:
     test = api.search_songs(search)
