@@ -2,6 +2,10 @@ import discord
 from discord.ext import commands
 from discord.ext.commands.context import Context
 
+from os import getenv 
+from dotenv import load_dotenv 
+load_dotenv()
+
 #import youtube_dl
 import yt_dlp
 
@@ -12,8 +16,10 @@ from googleapiclient.discovery import build
 
 from deletemp3 import truncate as removeMP3s
 
-TOKEN = "OTAxODk5MTEwMzM0OTk2NTYw.YXWlAA.cPog94xte8jGzCZTnXTYPV2JWHA"
-YT_API_KEY = "AIzaSyA_DWGx66IOUZryUtUH9fXdDJ1JO9WA0H8"
+
+
+TOKEN = getenv("TOKEN")
+YT_API_KEY = getenv("YT_API_KEY")
 
 YTDL_OPTIONS = {
             'format': 'bestaudio/best',
