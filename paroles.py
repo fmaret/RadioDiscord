@@ -18,30 +18,14 @@ api = genius.Genius(geniusCreds)
 
 searchs = ["Début de Soiree - Nuit de Folie - Clip Officiel", "Images - Les Démons de Minuit", "Desireless - Voyage Voyage", "Indochine - J'ai demandé à la lune (Clip officiel)"]
 
-#filtrage des noms
 
-motsAFiltrer = ["clip officiel"]
 
-for i,s in enumerate(searchs):
-    for m in motsAFiltrer:
-        if m in s.lower():
-            indice=s.lower().find(m)
-            searchs[i]=s[0:indice]+s[indice+len(m):]
-
-print(searchs)
-
-#fin du filtrage
-
-for search in searchs:
+""" for search in searchs:
     test = api.search_songs(search)
-    print()
-    print()
     print(test['hits'][0]['result']['full_title'])
-    print()
-    print()
 
-    # test_id = api.lyrics(test['hits'][0]['result']['id'])
-    # print(test_id)
+    test_id = api.lyrics(test['hits'][0]['result']['id'])
+    print(test_id) """
 
 # print(test)
 
@@ -51,3 +35,44 @@ for search in searchs:
 # with open('./Lyrics_KendjiGirac.json', 'r', encoding="utf-8") as file:
 #     x = json.load(file)
 #     x['songs'][0]['lyrics']
+
+def getLyrics(title: str, sorted_=False):
+    #filtrage des noms
+
+    #Attention : tout mettre en minuscules
+    motsAFiltrer = ["clip officiel", "official video", "4k", "[", "]"]
+
+    for m in motsAFiltrer:
+        if m in title.lower():
+            indice=title.lower().find(m)
+            title=title[0:indice]+title[indice+len(m):]
+
+    #fin du filtrage
+    
+    test = api.search_songs(title)
+    if test['hits'] != []:
+        
+        paroles = None
+
+        if sorted_ == True:
+            for i in range (len(test['hits'])):
+                if not "pageviews" in test['hits'][i]['result']['stats']:
+                    test['hits'][i]['result']['stats']['pageviews'] = 0
+
+            sorted_hits = sorted(test['hits'], key=lambda d: d['result']['stats']['pageviews'], reverse=True) 
+            paroles = api.lyrics(sorted_hits[0]['result']['id'])
+        else:
+            paroles = api.lyrics(test['hits'][0]['result']['id'])
+
+        return paroles
+    return ""
+
+#Kygo - Love Me Now (Official Video) ft. Zoe Wees
+
+if __name__ == "__main__":
+    print(getLyrics("Kygo - Love Me Now"))
+    print(getLyrics("Camellia Mili", True))
+
+    # https://genius.com/Kygo-love-me-now-lyrics
+    #getLyrics("Johnny Halliday - Allumer le feu")
+    # https://genius.com/Mili-indie-camelia-lyrics

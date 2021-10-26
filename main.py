@@ -1,6 +1,7 @@
 import discord
 from discord.ext import commands
 from discord.ext.commands.context import Context
+from discord.message import Message
 
 from os import getenv 
 from dotenv import load_dotenv 
@@ -15,6 +16,8 @@ import asyncio
 from googleapiclient.discovery import build
 
 from deletemp3 import truncate as removeMP3s
+
+from paroles import getLyrics
 
 
 
@@ -60,16 +63,50 @@ class Musique():
 
 #tests
 
-#l="https://www.youtube.com/watch?v=nBI0bDH8W28&list=PLlv1wuE2aMi__xQcsEiBimc_4qZQyQW8Z&index=1" #lien de la video seule qui lance la playlist
-#id="PLlv1wuE2aMi__xQcsEiBimc_4qZQyQW8Z" #id de cette vidéo
-#playlistId="PLun_CS7whKh6quHrLiNrApbDBq-EOspBc" #id de la playlist complete
-#request=youtube.playlists().list(
+# l="https://www.youtube.com/watch?v=nBI0bDH8W28&list=PLlv1wuE2aMi__xQcsEiBimc_4qZQyQW8Z&index=1" #lien de la video seule qui lance la playlist
+# id="8U0wIdnX4mw" #id de cette vidéo
+# playlistId="PLlv1wuE2aMi__xQcsEiBimc_4qZQyQW8Z" #id de la playlist complete
+# request=youtube.playlistItems().list(
 #        part="snippet",
-#        id=playlistId,
+#        playlistId=playlistId,
 #        maxResults="50")
-#response = request.execute()
+# response = request.execute()
 
+#for video in response['items']:
+
+    # Si t'enleve part= tu recuperes tout ?
+    # Bon si meme l'api youtube c'est de la merde on peut pas y faire grand chose.... 
+    # Si y'a lid ...
+    
+# Ya pas status
 #fin tests
+def isAllowed(lien: str) -> bool:
+    video_id = lien.split("https://www.youtube.com/watch?v=",1)[1]
+    request=youtube.videos().list(
+       part="contentDetails",
+       id=video_id,
+       maxResults="50")
+    response2 = request.execute()
+
+    allowed = True
+    try:
+        restrictions = response2["items"][0]['contentDetails']["regionRestriction"]
+        try:
+            if "FR" in restrictions['blocked']:
+                allowed = False
+        except:
+            pass
+
+        try:
+            if not "FR" in restrictions['allowed']:
+                allowed = False
+        except:
+            pass
+        
+    except:
+        pass
+
+    return allowed
 
 @bot.event
 async def on_ready():
@@ -79,7 +116,6 @@ async def on_ready():
 
 def addPlaylistToQueue(url:str): #return le nom de la playlist
     plid = url.split("playlist?list=",1)[1]
-    print(plid) 
     request = youtube.playlistItems().list(
         part="snippet",
         playlistId=plid,
@@ -90,6 +126,7 @@ def addPlaylistToQueue(url:str): #return le nom de la playlist
 
     for x in (response['items']):
         liens.append(x['snippet']['resourceId']['videoId'])
+        
 
     for lien in liens:
         queue.append(Musique("https://www.youtube.com/watch?v="+lien))
@@ -139,6 +176,20 @@ async def play(ctx:Context, url:str, channel:str = "General"):
         await ctx.send("Musique ajoutée à la queue")
     
 def play_next(ctx:Context): 
+    if len(queue) > 0:
+        if not isAllowed(queue[0].url):
+            asyncio.run_coroutine_threadsafe(ctx.send("La musique de merde qui fonctionne pas a été skip, ca nous aura pris 3h mais elle est skip juste pour pas que vous ayez a relancer la playlist depuis le depart.... Remerciez nous bande de merdes !"), bot.loop)
+            # Hesite pas a mettre un autre message,xDDD tqt j'ai peaufiné la fin
+            del queue[0]
+            play_next(ctx)
+            return
+
+    if len(queue) > 1:
+        del queue[0]
+
+    for el in queue:
+        print(el.videoName)
+
     vc = discord.utils.get(bot.voice_clients, guild=ctx.guild)
 
     if len(queue) == 0:
@@ -165,9 +216,9 @@ def play_next(ctx:Context):
         if file.endswith(".mp3"):
             os.rename(file, "song.mp3")
 
+    asyncio.run_coroutine_threadsafe(writeLyrics(ctx, queue[0]), bot.loop)
     asyncio.run_coroutine_threadsafe(bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name=queue[0].videoName)), bot.loop)
     
-    del queue[0]
     vc.play(discord.FFmpegPCMAudio("song.mp3"), after=lambda e: play_next(ctx))
     
 @bot.command()
@@ -187,7 +238,11 @@ async def search(ctx:Context, *, txt:str): #* pour pouvoir passer plusieurs mots
     await ctx.send(texteAAfficher)
 
     await ctx.send("Merci d'entrer un nombre entre 1 et 5.")
-    message = await bot.wait_for("message")    
+
+    def validity(msg: Message):
+        return msg.author == ctx.author
+
+    message = await bot.wait_for("message", check=validity)    
     if message.content.isnumeric() and 0<int(message.content)<=5:
         await play(ctx, liens[int(message.content)-1])
     else:
@@ -229,6 +284,34 @@ async def resume(ctx:Context):
     else:
         await ctx.send("Le lecteur n'est pas en pause.")
 
+async def writeLyrics(ctx:Context, m:Musique, sorted_=False):
+    print("VIVANT")
+    guild = ctx.message.guild
+    channel = discord.utils.get(ctx.guild.channels, name="paroles") #recupérer le nom du channel pour savoir s'il existe
+    if channel is None:
+        await guild.create_text_channel("paroles")
+    
+    channel = discord.utils.get(ctx.guild.channels, name="paroles")
+    lyrics = getLyrics(m.videoName, sorted_)
 
+    await channel.send("Paroles de "+m.videoName)
+
+    if len(lyrics) > 1500:
+        await channel.send(lyrics[0:1500])
+        await channel.send(lyrics[1501:])
+    else:
+        await channel.send(lyrics)
+        
+
+    #await ctx.send(f"Created a channel named paroles")
+
+
+@bot.command()
+async def changeLyrics(ctx:Context):
+    if ctx.channel.name != "paroles":
+        return
+        
+    await writeLyrics(ctx, queue[0], True)
+    
 bot.run(TOKEN)
 
