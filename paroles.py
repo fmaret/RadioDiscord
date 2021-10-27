@@ -36,16 +36,23 @@ searchs = ["Début de Soiree - Nuit de Folie - Clip Officiel", "Images - Les Dé
 #     x = json.load(file)
 #     x['songs'][0]['lyrics']
 
+def filterWords(title):
+    wordsToFilter = ["clip officiel", "official video", "4k", "(paroles)", "(parole)", "(lyric)", "(lyrics)",
+    "(lyrics video)","(audio)",
+    "[]", "()", " -", " –"
+    ] #bien mettre à la fin les parenthèses fermées seule et crochets seuls pour faire en dernier
+    for m in wordsToFilter:
+        if m in title.lower():
+            indice=title.lower().find(m)
+            title=title[0:indice]+title[indice+len(m):]
+    return title
+
 def getLyrics(title: str, sorted_=False):
     #filtrage des noms
 
     #Attention : tout mettre en minuscules
-    motsAFiltrer = ["clip officiel", "official video", "4k", "[", "]"]
-
-    for m in motsAFiltrer:
-        if m in title.lower():
-            indice=title.lower().find(m)
-            title=title[0:indice]+title[indice+len(m):]
+    
+    title=filterWords(title)
 
     #fin du filtrage
     
