@@ -84,7 +84,7 @@ def ajouterJsonPlaylist(jsonfile,playlist,limiteDePlaylists=10, limiteDeChansons
     with open("./"+jsonfile, "w") as file:
         json.dump(data,file)
 
-ajouterJsonPlaylist("blindTestPlaylist2.json","variété française",limiteDePlaylists=1, limiteDeChansonsParPlaylist=10)
+ajouterJsonPlaylist("blindTestPlaylist2.json","années 80",limiteDePlaylists=1, limiteDeChansonsParPlaylist=10)
 
 def removeIndexesFromList(indexes, list):
     for index in sorted(indexes, reverse=True):

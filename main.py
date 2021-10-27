@@ -1,4 +1,5 @@
 import discord
+from discord.channel import DMChannel
 from discord.ext import commands
 from discord.ext.commands.context import Context
 from discord.message import Message
@@ -24,8 +25,11 @@ import json
 import random
 
 import time
+from threading import Timer
 
 from gestionRadio import *
+
+from checkAnswers import *
 
 TOKEN = getenv("TOKEN")
 YT_API_KEY = getenv("YT_API_KEY_2")
@@ -49,6 +53,12 @@ bot = commands.Bot(command_prefix="!")
 youtube = build('youtube', 'v3', developerKey=YT_API_KEY)
 
 queue = []
+
+blindTest = {
+    "on": False,
+    "chansonBlindTest" : None,
+}
+
 
 
 
@@ -458,13 +468,17 @@ async def testbt(ctx:Context): #test blindtest : joue une seule chanson pendant 
     voice = discord.utils.get(bot.voice_clients, guild=ctx.guild)
         
     if not voice.is_playing():
-        play_next_blindtest(ctx)
-        await ctx.send("Lancement du blind test !")
+
+        embedVar = discord.Embed(title=f"LANCEMENT !!!! CEST PARTIS !!!!", color=0x00ff00)
+        blindTest['on'] = True
+        message = await ctx.send(embed=embedVar)
+        play_next_blindtest(ctx, message)
+        
     else:
         await ctx.send("Le bot est déjà en train de jouer de la musique.")
 
 
-def play_next_blindtest(ctx:Context):
+def play_next_blindtest(ctx:Context, message):
     #pas de queue dans la radio, on choisit une musique random et on la joue
 
     jsonfile="blindtestPlaylist2.json"
@@ -478,12 +492,20 @@ def play_next_blindtest(ctx:Context):
 
     asyncio.run_coroutine_threadsafe(bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name=chosenSong.videoName)), bot.loop)
     
-    
-    vc.play(discord.FFmpegPCMAudio("song.mp3"), after=lambda e: play_next_blindtest(ctx))
-    time.sleep(20) #compter le temps de dl dedans
-    voice = discord.utils.get(bot.voice_clients, guild=ctx.guild)
-    voice.stop()
+    startTimerBT(ctx, 40, message, chosenSong)
 
+    vc.play(discord.FFmpegPCMAudio("song.mp3"), after=lambda e: play_next_blindtest(ctx, message))
+    blindTest['chansonBlindTest'] = chosenSong
+
+    def skipBlindTest():
+        voice = discord.utils.get(bot.voice_clients, guild=ctx.guild)
+        voice.stop()
+        blindTest['chansonBlindTest'] = None
+
+    Timer(40, skipBlindTest).start()
+    #time.sleep(20) #compter le temps de dl dedans
+    #voice = discord.utils.get(bot.voice_clients, guild=ctx.guild)
+    #voice.stop()
 def chooseSongFromJson(jsonfile:str):
     try:
         with open("./"+jsonfile, "r") as file:
@@ -496,9 +518,60 @@ def chooseSongFromJson(jsonfile:str):
         data=[]
         return -1
 
-@bot.command()
-async def testEmbed(ctx:Context):
-    pass
+def startTimerBT(ctx:Context,max:int, message, chosenSong):
+    def incrementEmbed(*args): 
+        if args[1] == True:
+            newEmbedVar = discord.Embed(title=f"C'est fini !", color=0x00ff00)
+            newEmbedVar.add_field(name="Chanteur", value=f"{', '.join(args[3].artists)}")
+            newEmbedVar.add_field(name="Titre", value=f"{args[3].title}")
+            asyncio.run_coroutine_threadsafe(args[2].edit(embed=newEmbedVar), bot.loop)
+        else:
+            newEmbedVar = discord.Embed(title=f"Quelle est cette musique ? {args[0]}", description="Vous gagnez un point pour le titre et un point pour l'artiste.", color=0x00ff00)
+            asyncio.run_coroutine_threadsafe(args[2].edit(embed=newEmbedVar), bot.loop)
+
+    for i in range(max-1):
+        Timer(i+1, incrementEmbed, (str(i+1), False, message, chosenSong)).start()
+    Timer(max, incrementEmbed, (str(max), True, message, chosenSong)).start()
+    
+@bot.event
+async def on_message(message: Message):
+    if isinstance(message.channel, DMChannel):
+        #print(message.content)  
+        #print(message.channel.type)
+        #print(blindTest)
+        if blindTest['on']:
+            checkAnswer(message.content, blindTest['chansonBlindTest'], 0.9)
+    else: 
+        await bot.process_commands(message)
+
+def checkAnswer(answer:str, music:Musique, pourcent):
+    # titre = music.title.lower()
+    # artistes = [artiste.lower() for artiste in music.artists]
+    
+    # answer_split = answer.split(" ")
+
+
+    # Titre = AH SI TU SAVAIS FERMER TA GUEULE
+    # String = Ah si tu savais fermer // FAUX
+    #  SString = Ah si tu savais fermer ta gueule PATRICK SEBASTIEN // TRUE 2 points
+
+    # test = answer.lower().split(titre)
+
+
+    if goodTitle(answer, music, pourcent):
+        print("Bravo, c'est le bon titre")
+    if goodArtist(answer, music, pourcent):
+        print("Bravo, c'est le bon artiste")
+
+def goodTitle(answer:str, music:Musique, pourcent):
+    return valideReponse(music.title, answer, pourcent)
+            
+
+
+    
+def goodArtist(answer:str, music:Musique, pourcent):
+    gagner = random.randint(1,2)
+    return True if gagner == 1 else False
 
 if __name__=="__main__":
     bot.run(TOKEN)
