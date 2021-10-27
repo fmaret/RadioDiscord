@@ -65,24 +65,31 @@ def remove_accents(raw_text):
     raw_text = re.sub(u"[ñ]", 'n', raw_text)
     return raw_text 
 
-def valideReponse(reponse,r, pourcent):
+def valideReponse(reponse,r, pourcent=0.9):
 
     Str1=reponse
     Str2=r
 
-    reponseSplit=reponse.split(" ")
-    repDonneeSplit=r.split(" ")
+    #reponseSplit=reponse.split(" ")
+    reponseSplit= re.findall(r"[\w']+", reponse)
+    #faire attention aux tirets
+    #repDonneeSplit=r.split(" ")
+    repDonneeSplit= re.findall(r"[\w']+", r)
     for mot in reponseSplit:
         #pour chaque mot de la reponse on check si l'un des mots correspond à plus de X %
-        if not motCorrespondDansListeDeMots(remove_accents(mot.lower().strip()), repDonneeSplit, pourcent):
+        if not motCorrespondDansListeDeMots(convertirEcriture(remove_accents(mot.lower().strip())), repDonneeSplit, pourcent):
             return False
     return True
 
 def motCorrespondDansListeDeMots(mot:str, listeMots, pourcent:float):
     for word in listeMots:
-        if levenshtein_ratio_and_distance(remove_accents(mot.lower().strip()), remove_accents(word.lower().strip()),ratio_calc = True)>=pourcent:
+        if levenshtein_ratio_and_distance(convertirEcriture(remove_accents(mot.lower().strip())), convertirEcriture(remove_accents(word.lower().strip())),ratio_calc = True)>=pourcent:
             return True
     return False
 
-#reste à : converte les "l'hotel" en "lhotel"
-#faire attention aux tirets
+
+def convertirEcriture(mot:str):
+    #converte les "l'hotel" en "lhotel"
+   
+    mot=re.sub(u"['`]", '', mot)
+    return mot

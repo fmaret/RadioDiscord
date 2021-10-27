@@ -570,8 +570,9 @@ def goodTitle(answer:str, music:Musique, pourcent):
 
     
 def goodArtist(answer:str, music:Musique, pourcent):
-    gagner = random.randint(1,2)
-    return True if gagner == 1 else False
+    artistes=music.artists
+    artistes=" ".join(artistes)
+    return valideReponse(artistes, answer, pourcent)
 
 if __name__=="__main__":
     bot.run(TOKEN)
