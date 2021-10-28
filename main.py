@@ -32,7 +32,7 @@ from gestionRadio import *
 from checkAnswers import *
 
 TOKEN = getenv("TOKEN")
-YT_API_KEY = getenv("YT_API_KEY_2")
+YT_API_KEY = getenv("YT_API_KEY_3")
 
 YTDL_OPTIONS = {
             'format': 'bestaudio/best',
@@ -57,7 +57,11 @@ queue = []
 blindTest = {
     "on": False,
     "chansonBlindTest" : None,
+    "joueurs":[],
+    "embedLeaderboard":None
 }
+
+#joueurs contient des objets {"nom":nom, "points":points, "dejaRepTitre":bool, "dejaRepArtiste":bool}
 
 
 
@@ -456,7 +460,7 @@ def downloadSong(song):
             os.rename(file, "song.mp3")
 
 @bot.command()
-async def testbt(ctx:Context): #test blindtest : joue une seule chanson pendant 30 secondes parmi la liste des chansons
+async def blindtest(ctx:Context): #test blindtest : joue une seule chanson pendant 30 secondes parmi la liste des chansons
     voiceChannel = discord.utils.get(ctx.guild.voice_channels, name="General")
     voice = discord.utils.get(bot.voice_clients, guild=ctx.guild)
     if not voice: #voice vaut Null si le bot n'était pas dans le channel
@@ -469,9 +473,11 @@ async def testbt(ctx:Context): #test blindtest : joue une seule chanson pendant 
         
     if not voice.is_playing():
 
-        embedVar = discord.Embed(title=f"LANCEMENT !!!! CEST PARTIS !!!!", color=0x00ff00)
+        embedVar = discord.Embed(title=f"LANCEMENT !!!! C'EST PARTI !!!!", color=0x00ff00)
         blindTest['on'] = True
+        blindTest['joueurs'].append({"nom":ctx.author.name, "points":0, "dejaRepTitre":False, "dejaRepArtiste":False})
         message = await ctx.send(embed=embedVar)
+        await displayLeaderboard(ctx)
         play_next_blindtest(ctx, message)
         
     else:
@@ -480,7 +486,10 @@ async def testbt(ctx:Context): #test blindtest : joue une seule chanson pendant 
 
 def play_next_blindtest(ctx:Context, message):
     #pas de queue dans la radio, on choisit une musique random et on la joue
-
+    for p in blindTest["joueurs"]:
+        p["dejaRepTitre"]=False
+        p["dejaRepArtiste"]=False
+    
     jsonfile="blindtestPlaylist2.json"
     chosenSong = chooseSongFromJson(jsonfile)
     while not isAllowed(chosenSong.url):
@@ -540,11 +549,27 @@ async def on_message(message: Message):
         #print(message.channel.type)
         #print(blindTest)
         if blindTest['on']:
-            checkAnswer(message.content, blindTest['chansonBlindTest'], 0.9)
+            if not joueurDansLaPartie(message.author.name) and message.author.name!="La Radio" :
+                blindTest["joueurs"].append({"nom":message.author.name, "points":0, "dejaRepTitre":False, "dejaRepArtiste":False})
+                print(blindTest["joueurs"])
+            checkAnswer(message, blindTest['chansonBlindTest'], 0.9)
     else: 
         await bot.process_commands(message)
 
-def checkAnswer(answer:str, music:Musique, pourcent):
+def joueurDansLaPartie(nomJoueur:str):
+    for joueur in blindTest["joueurs"]:
+        if joueur["nom"]==nomJoueur:
+            return True
+    return False
+
+def getJoueurPartie(nomJoueur:str):
+    for joueur in blindTest["joueurs"]:
+        if joueur["nom"]==nomJoueur:
+            return joueur
+    return {}
+
+def checkAnswer(message:Message, music:Musique, pourcent):
+    answer=message.content
     # titre = music.title.lower()
     # artistes = [artiste.lower() for artiste in music.artists]
     
@@ -556,12 +581,19 @@ def checkAnswer(answer:str, music:Musique, pourcent):
     #  SString = Ah si tu savais fermer ta gueule PATRICK SEBASTIEN // TRUE 2 points
 
     # test = answer.lower().split(titre)
+    
 
-
-    if goodTitle(answer, music, pourcent):
-        print("Bravo, c'est le bon titre")
-    if goodArtist(answer, music, pourcent):
-        print("Bravo, c'est le bon artiste")
+    if goodTitle(answer, music, pourcent) and not getJoueurPartie(message.author.name)["dejaRepTitre"]:
+        asyncio.run_coroutine_threadsafe(message.author.send("Bravo c'est le bon titre"), bot.loop)
+        getJoueurPartie(message.author.name)["dejaRepTitre"]=True
+        getJoueurPartie(message.author.name)["points"]+=1
+        asyncio.run_coroutine_threadsafe(updateLeaderboard(), bot.loop)
+    if goodArtist(answer, music, pourcent) and not getJoueurPartie(message.author.name)["dejaRepArtiste"]:
+       asyncio.run_coroutine_threadsafe(message.author.send("Bravo c'est le bon artiste"), bot.loop)
+       getJoueurPartie(message.author.name)["dejaRepArtiste"]=True
+       getJoueurPartie(message.author.name)["points"]+=1
+       asyncio.run_coroutine_threadsafe(updateLeaderboard(), bot.loop)
+    print(blindTest["joueurs"])
 
 def goodTitle(answer:str, music:Musique, pourcent):
     return valideReponse(music.title, answer, pourcent)
@@ -574,6 +606,35 @@ def goodArtist(answer:str, music:Musique, pourcent):
     artistes=" ".join(artistes)
     return valideReponse(artistes, answer, pourcent)
 
+
+async def displayLeaderboard(ctx):
+    joueurs=[]
+    for i,d in enumerate(blindTest["joueurs"]):
+        joueurs.append(str(i+1)+". "+d["nom"]+" "+str(d["points"]))
+    description="\n".join(joueurs)
+    embed = discord.Embed(title=f"Classement",description=description, color=0x00ff00)
+    blindTest["embedLeaderboard"] = await ctx.send(embed=embed)
+    
+
+async def updateLeaderboard():
+    embedMessage = blindTest["embedLeaderboard"]
+
+    joueurs=[]
+    sortedList = sorted(blindTest["joueurs"], key=lambda x: x['points'], reverse=True)
+
+    for i,d in enumerate(sortedList):
+        joueurs.append(str(i+1)+". "+d["nom"]+" "+str(d["points"]))
+    description="\n".join(joueurs)
+
+    newEmbed=discord.Embed(title=f"Classement",description=description, color=0x00ff00)
+    print(description)
+    await embedMessage.edit(embed=newEmbed)
+
+
+
+
 if __name__=="__main__":
     bot.run(TOKEN)
 
+
+#Attention : michel berger - La groupie du pianiste (remasterisé en 2002)

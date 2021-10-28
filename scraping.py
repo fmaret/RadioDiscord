@@ -25,6 +25,8 @@ from main import *
 from paroles import filterWords
 import json
 
+from checkAnswers import *
+
 
 def getSongsOfArtist(artist, limit=10):
     results = sp.search(q=f"artist:{artist}", limit=limit, market="FR")
@@ -36,10 +38,17 @@ def spotiSearch(recherche):
     for r in results['tracks']['items']:
         print(f"{r['name']} par {r['artists'][0]['name']}")
 
-def getSongsOfPlaylist(playlist, limiteDePlaylists=10, limiteDeChansonsParPlaylist=100):
+def getSongsOfPlaylist(playlist, jsonfile, limiteDePlaylists=10, limiteDeChansonsParPlaylist=100): #on donne un jsonfile pour ne pas ajouter les artistes/chansons deja presents dans le json à data
     results = sp.search(q=playlist, limit=limiteDePlaylists, market="FR", type="playlist")
     #print(results)
     data=[]
+    dataJson=[]
+    try:
+        with open("./"+jsonfile, "r") as file:
+            dataJson=json.load(file)
+    except:
+        pass
+
     for r in results["playlists"]['items']:
         id=r["id"]
         print(id)
@@ -48,12 +57,16 @@ def getSongsOfPlaylist(playlist, limiteDePlaylists=10, limiteDeChansonsParPlayli
             pass
             artistes=([a["name"] for a in track["track"]['artists']])
             titre=(track["track"]["name"])
-            data.append({"artistes": artistes, "titre":titre})
+            if not any([valideReponse(titre, d['titre'], 0.9) and valideReponse(" ".join(artistes)," ".join(d['artistes']),0.9) for d in dataJson]):
+                data.append({"artistes": artistes, "titre":titre})
+            else:
+                print(f"{titre} par {artistes} déjà présent dans le json")
+                
     return data
 
+#d=(getSongsOfPlaylist("années 80", "blindTestPlaylist2.json",1,100))
 
-
-def addUrlOfSongs(data):
+def addUrlOfSongs(data, jsonfile): #ajoute les url et ajoute un à un au json
     for d in data:
         request = youtube.search().list(
             part="snippet", 
@@ -65,26 +78,28 @@ def addUrlOfSongs(data):
             d["url"]
         except:
             d["url"]=("https://www.youtube.com/watch?v="+response['items'][0]["id"]["videoId"])
+            ajouterMusiqueDansJson(jsonfile, d)
+            print(f"{d['titre']} par {d['artistes']} ajouté au json ")
     return data
 
 
 
 def ajouterJsonPlaylist(jsonfile,playlist,limiteDePlaylists=10, limiteDeChansonsParPlaylist=100):
-    d=getSongsOfPlaylist(playlist,limiteDePlaylists=limiteDePlaylists,limiteDeChansonsParPlaylist=limiteDeChansonsParPlaylist)
-    d=addUrlOfSongs(d)
+    d=getSongsOfPlaylist(playlist,jsonfile, limiteDePlaylists=limiteDePlaylists,limiteDeChansonsParPlaylist=limiteDeChansonsParPlaylist)
+    d=addUrlOfSongs(d, jsonfile)
 
+def ajouterMusiqueDansJson(jsonfile, d): #ajoute une seule musique dans le json
     data=[]
     try :
         with open("./"+jsonfile, "r") as file:
-            data=json.load()
+            data=json.load(file)
     except:
         pass
-
-        data=data+d
+    data.append(d)
     with open("./"+jsonfile, "w") as file:
         json.dump(data,file)
 
-ajouterJsonPlaylist("blindTestPlaylist2.json","années 80",limiteDePlaylists=1, limiteDeChansonsParPlaylist=10)
+ajouterJsonPlaylist("blindTestPlaylist2.json","vianney",limiteDePlaylists=1, limiteDeChansonsParPlaylist=5)
 
 def removeIndexesFromList(indexes, list):
     for index in sorted(indexes, reverse=True):
