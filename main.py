@@ -571,8 +571,6 @@ def play_next_blindtest(ctx:Context, message):
 
     downloadSong(chosenSong)
 
-    asyncio.run_coroutine_threadsafe(bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name=chosenSong.videoName)), bot.loop)
-    
     startTimerBT(ctx, 40, message, chosenSong)
 
     vc.play(discord.FFmpegPCMAudio("song.mp3"), after=lambda e: play_next_blindtest(ctx, message))
