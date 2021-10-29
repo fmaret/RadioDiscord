@@ -8,6 +8,12 @@
 
 # print(soup)
 
+from bs4 import BeautifulSoup
+from selenium import webdriver
+import time
+import sys
+from selenium.webdriver.chrome.options import Options
+
 from os import getenv 
 from dotenv import load_dotenv 
 load_dotenv()
@@ -66,7 +72,7 @@ def getSongsOfPlaylist(playlist, jsonfile, limiteDePlaylists=10, limiteDeChanson
 
 #d=(getSongsOfPlaylist("années 80", "blindTestPlaylist2.json",1,100))
 
-def addUrlOfSongs(data, jsonfile): #ajoute les url et ajoute un à un au json
+def addUrlOfSongsWithYTAPI(data, jsonfile): #ajoute les url et ajoute un à un au json
     for d in data:
         request = youtube.search().list(
             part="snippet", 
@@ -82,11 +88,76 @@ def addUrlOfSongs(data, jsonfile): #ajoute les url et ajoute un à un au json
             print(f"{d['titre']} par {d['artistes']} ajouté au json ")
     return data
 
+def getUrlOfSong(titre, artistes): #titre: string artistes : liste de strings
+    query=titre+" "+" ".join(artistes)
+    query=query.replace(" ", "+")
+    url = f'https://www.youtube.com/results?search_query={query}'
+    driver = None
+
+    try:
+        chrome_options = Options()
+        #chrome_options.add_argument("--disable-extensions")
+        #chrome_options.add_argument("--disable-gpu")
+        #chrome_options.add_argument("--no-sandbox") # linux only
+        chrome_options.add_argument("--headless")
+        # chrome_options.headless = True # also works
+        driver = webdriver.Chrome("./chromedriver",options=chrome_options)
+        #driver = webdriver.Chrome('./chromedriver')
+    except:
+        driver = webdriver.Chrome('./amazon scrapping/chromedriver')
+
+    driver.get(url)
+
+    soup = BeautifulSoup(driver.page_source, features="html.parser")
+    video = soup.find(class_="style-scope ytd-search").find(id="primary").find(id="contents").findChildren()[0].find(id="contents").find(class_="style-scope ytd-item-section-renderer")
+    
+    #lien=video.find(id="video-title")['href'].strip()
+    lien=video.find(id="thumbnail")['href'].strip()
+    id = (lien.split("?v=",1)[1])
+    
+    driver.quit()
+
+    return id
+
+def addUrlOfSongsWithScraping(data, jsonfile): #ajoute les url et ajoute un à un au json
+    for d in data:
+        d["url"]=("https://www.youtube.com/watch?v="+getUrlOfSong(d["titre"], d['artistes']))
+        ajouterMusiqueDansJson(jsonfile, d)
+        print(f"{d['titre']} par {d['artistes']} ajouté au json ")
+    return data
+
+def addUrlOfSongsWithScrapingOpti(data, jsonfile): #ajoute les url et ajoute un à un au json
+    
+    chrome_options = Options()
+        
+    #chrome_options.add_argument("--headless")
+        
+    driver = webdriver.Chrome("./chromedriver",options=chrome_options)
+    
+    for d in data:
+        query=d["titre"]+" "+" ".join(d["artistes"])
+        #print(f"query: {query}")
+        query=query.replace(" ", "+")
+        url = f'https://www.youtube.com/results?search_query={query}'
+        driver.get(url)
+
+        soup = BeautifulSoup(driver.page_source, features="html.parser")
+        #video = soup.find(class_="style-scope ytd-search").find(id="primary").find(id="contents").findChildren()[0].find(id="contents").find(class_="style-scope ytd-item-section-renderer")
+        video = soup.find(class_="style-scope ytd-search").find(id="primary").find(id="contents").findChildren()[0].find(id="contents").find(class_="style-scope ytd-item-section-renderer")
+        lien=video.find(id="thumbnail")['href'].strip()
+        id = (lien.split("?v=",1)[1]).split("&list",1)[0]
+
+        d["url"]=("https://www.youtube.com/watch?v="+id)
+        ajouterMusiqueDansJson(jsonfile, d)
+        print(f"{d['titre']} par {d['artistes']} ajouté au json ")
+
+    driver.quit() 
+    return data
 
 
 def ajouterJsonPlaylist(jsonfile,playlist,limiteDePlaylists=10, limiteDeChansonsParPlaylist=100):
     d=getSongsOfPlaylist(playlist,jsonfile, limiteDePlaylists=limiteDePlaylists,limiteDeChansonsParPlaylist=limiteDeChansonsParPlaylist)
-    d=addUrlOfSongs(d, jsonfile)
+    d=addUrlOfSongsWithScrapingOpti(d, jsonfile)
 
 def ajouterMusiqueDansJson(jsonfile, d): #ajoute une seule musique dans le json
     data=[]
@@ -99,7 +170,11 @@ def ajouterMusiqueDansJson(jsonfile, d): #ajoute une seule musique dans le json
     with open("./"+jsonfile, "w") as file:
         json.dump(data,file)
 
-ajouterJsonPlaylist("blindTestPlaylist2.json","vianney",limiteDePlaylists=1, limiteDeChansonsParPlaylist=5)
+ajouterJsonPlaylist("blindTestPlaylist2.json","variété française",limiteDePlaylists=1, limiteDeChansonsParPlaylist=100)
+
+
+
+    
 
 def removeIndexesFromList(indexes, list):
     for index in sorted(indexes, reverse=True):

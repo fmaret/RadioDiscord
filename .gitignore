@@ -6,3 +6,4 @@ chansons
 ffmpeg
 .env
 *.webm
+chromedriver.exe
