@@ -65,9 +65,13 @@ def remove_accents(raw_text):
     raw_text = re.sub(u"[ñ]", 'n', raw_text)
     return raw_text 
 
+def removeInBrackets(txt:str):
+    re.sub("([\(\[]).*?([\)\]])", "\g<1>\g<2>", txt)
+    return txt
+
 def valideReponse(reponse,r, pourcent=0.9):
 
-    Str1=reponse
+    Str1=removeInBrackets(reponse)
     Str2=r
 
     #reponseSplit=reponse.split(" ")

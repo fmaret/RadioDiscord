@@ -58,7 +58,9 @@ blindTest = {
     "on": False,
     "chansonBlindTest" : None,
     "joueurs":[],
-    "embedLeaderboard":None
+    "embedLeaderboard":None,
+    "manche": 0,
+    "manchesMax": 5
 }
 
 #joueurs contient des objets {"nom":nom, "points":points, "dejaRepTitre":bool, "dejaRepArtiste":bool}
@@ -178,6 +180,16 @@ def addPlaylistToQueue(url:str): #return le nom de la playlist
 
 @bot.command()
 async def play(ctx:Context, url:str, channel:str = "General"):
+    if blindTest['on']:
+        return
+    voice = discord.utils.get(bot.voice_clients, guild=ctx.guild)
+    try:
+        if voice.is_connected():
+            await ctx.send("La radio est déjà dans le salon, faites !leave pour la faire quitter, puis relancer la commande.")
+            return
+    except:
+        pass
+
     if not any(url.startswith(YT_LINK) for YT_LINK in YOUTUBE_LINKS):
         await ctx.send("Ce n'est pas un lien Youtube !")
         return
@@ -248,6 +260,15 @@ def play_next(ctx:Context):
     
 @bot.command()
 async def search(ctx:Context, *, txt:str): #* pour pouvoir passer plusieurs mots en arguments txt
+    if blindTest['on']:
+        return
+    voice = discord.utils.get(bot.voice_clients, guild=ctx.guild)
+    try:
+        if voice.is_connected():
+            await ctx.send("La radio est en route, faites !leave pour la faire quitter, puis relancer la commande.")
+            return
+    except:
+        pass
     request = youtube.search().list(
         part="snippet",
         q=txt,
@@ -278,14 +299,17 @@ async def search(ctx:Context, *, txt:str): #* pour pouvoir passer plusieurs mots
 @bot.command()
 async def skip(ctx:Context):
     # Stop current song
-    voice = discord.utils.get(bot.voice_clients, guild=ctx.guild)
-    voice.stop()
+    if not blindTest['on']:
+        voice = discord.utils.get(bot.voice_clients, guild=ctx.guild)
+        voice.stop()
 
     # Play next song on queue (pas nécessaire car quand on voice.stop() ça lance le after qui lance play_next)
     # play_next(ctx)
 
 @bot.command()
 async def leave(ctx:Context):
+    if blindTest['on']:
+        return
     voice = discord.utils.get(bot.voice_clients, guild=ctx.guild)
     if voice.is_connected():
         await voice.disconnect()
@@ -293,8 +317,16 @@ async def leave(ctx:Context):
     else:
         await ctx.send("Le bot n'est pas dans un channel vocal.")
 
+async def leaveRoom(ctx:Context):
+    voice = discord.utils.get(bot.voice_clients, guild=ctx.guild)
+    if voice.is_connected():
+        await voice.disconnect()
+        queue.clear()
+
 @bot.command()
 async def pause(ctx:Context):
+    if blindTest['on']:
+        return
     voice = discord.utils.get(bot.voice_clients, guild=ctx.guild)
     if voice.is_playing():
         voice.pause()
@@ -303,6 +335,8 @@ async def pause(ctx:Context):
 
 @bot.command()
 async def resume(ctx:Context):
+    if blindTest['on']:
+        return
     voice = discord.utils.get(bot.voice_clients, guild=ctx.guild)
     if voice.is_paused():
         voice.resume()
@@ -335,30 +369,32 @@ async def writeLyrics(ctx:Context, m:Musique, sorted_=False):
 async def changeLyrics(ctx:Context):
     if ctx.channel.name != "paroles":
         return
+    if blindTest['on']:
+        return
         
     await writeLyrics(ctx, queue[0], True)
 
-@bot.command()
-async def addToRadio(ctx:Context, url): #pas de vérif que c'est bien une playlist pour l'instant
-    # Lire un fichier
+# @bot.command()
+# async def addToRadio(ctx:Context, url): #pas de vérif que c'est bien une playlist pour l'instant
+#     # Lire un fichier
 
-    # TODO: Verifier si c'est bien une playlist
+#     # TODO: Verifier si c'est bien une playlist
 
-    if not any(url.startswith(YT_LINK) for YT_LINK in YOUTUBE_LINKS):
-        await ctx.send("Ce n'est pas un lien Youtube !")
-        return
+#     if not any(url.startswith(YT_LINK) for YT_LINK in YOUTUBE_LINKS):
+#         await ctx.send("Ce n'est pas un lien Youtube !")
+#         return
 
-    if "playlist?list" in url: #on a mis une playlist
-        nomPlaylist = addPlaylistToJson(url)
-        await ctx.send("Ajout de la playlist : "+nomPlaylist)
-    elif "&list" in url:  #on a mis une seule musique mais elle a une playlist dans le lien
-        m=Musique(url.split("&list")[0])
-        addSongToJson(m.url) 
-        await ctx.send("Ajout de la musique : "+m.videoName)
-    else: 
-        m=Musique(url)
-        addSongToJson(m.url) 
-        await ctx.send("Ajout de la musique : "+m.videoName)
+#     if "playlist?list" in url: #on a mis une playlist
+#         nomPlaylist = addPlaylistToJson(url)
+#         await ctx.send("Ajout de la playlist : "+nomPlaylist)
+#     elif "&list" in url:  #on a mis une seule musique mais elle a une playlist dans le lien
+#         m=Musique(url.split("&list")[0])
+#         addSongToJson(m.url) 
+#         await ctx.send("Ajout de la musique : "+m.videoName)
+#     else: 
+#         m=Musique(url)
+#         addSongToJson(m.url) 
+#         await ctx.send("Ajout de la musique : "+m.videoName)
 
     
 
@@ -424,6 +460,16 @@ def chooseSong():
 
 @bot.command()
 async def startRadio(ctx:Context):
+    if blindTest['on']:
+        return
+    voice = discord.utils.get(bot.voice_clients, guild=ctx.guild)
+    try:
+        if voice.is_connected():
+            await ctx.send("Le bot est déjà dans le salon, faites !leave pour le faire quitter, puis relancer la commande pour démarrer la radio.")
+            return
+    except:
+        pass
+    
     voiceChannel = discord.utils.get(ctx.guild.voice_channels, name="General")
     voice = discord.utils.get(bot.voice_clients, guild=ctx.guild)
     if not voice: #voice vaut Null si le bot n'était pas dans le channel
@@ -436,9 +482,9 @@ async def startRadio(ctx:Context):
     voice = discord.utils.get(bot.voice_clients, guild=ctx.guild)
 
         
-    if not voice.is_playing():
-        play_next_radio(ctx)
+    if not voice.is_playing():        
         await ctx.send("Lancement de la radio !")
+        play_next_radio(ctx)        
     else:
         await ctx.send("Le bot est déjà en train de jouer de la musique.")
     
@@ -460,7 +506,19 @@ def downloadSong(song):
             os.rename(file, "song.mp3")
 
 @bot.command()
-async def blindtest(ctx:Context): #test blindtest : joue une seule chanson pendant 30 secondes parmi la liste des chansons
+async def blindtest(ctx:Context, manchesMax=5): #test blindtest : joue une seule chanson pendant 30 secondes parmi la liste des chansons
+    if blindTest['on']==True:
+        return
+    if int(manchesMax)<=0:
+        return
+    voice = discord.utils.get(bot.voice_clients, guild=ctx.guild)
+    try:
+        if voice.is_connected():
+            await ctx.send("Le bot est déjà dans le salon, faites !leave pour le faire quitter, puis relancer la commande pour démarrer le blindtest.")
+            return
+    except:
+        pass
+    blindTest['manchesMax']=manchesMax
     voiceChannel = discord.utils.get(ctx.guild.voice_channels, name="General")
     voice = discord.utils.get(bot.voice_clients, guild=ctx.guild)
     if not voice: #voice vaut Null si le bot n'était pas dans le channel
@@ -483,8 +541,22 @@ async def blindtest(ctx:Context): #test blindtest : joue une seule chanson penda
     else:
         await ctx.send("Le bot est déjà en train de jouer de la musique.")
 
+def finBT(ctx:Context):
+    blindTest = {
+        "on": False,
+        "chansonBlindTest" : None,
+        "joueurs":[],
+        "embedLeaderboard":None,
+        "manche": 0,
+        "manchesMax": 5
+    }
+    asyncio.run_coroutine_threadsafe(leaveRoom(ctx), bot.loop)
+    asyncio.run_coroutine_threadsafe(ctx.send("Le blindtest est terminé ! Merci d'avoir joué !"), bot.loop)
 
 def play_next_blindtest(ctx:Context, message):
+    if blindTest['manche']==blindTest['manchesMax']:
+        finBT(ctx)
+        return
     #pas de queue dans la radio, on choisit une musique random et on la joue
     for p in blindTest["joueurs"]:
         p["dejaRepTitre"]=False
@@ -505,6 +577,7 @@ def play_next_blindtest(ctx:Context, message):
 
     vc.play(discord.FFmpegPCMAudio("song.mp3"), after=lambda e: play_next_blindtest(ctx, message))
     blindTest['chansonBlindTest'] = chosenSong
+    blindTest['manche']+=1
 
     def skipBlindTest():
         voice = discord.utils.get(bot.voice_clients, guild=ctx.guild)
@@ -630,6 +703,9 @@ async def updateLeaderboard():
     print(description)
     await embedMessage.edit(embed=newEmbed)
 
+@bot.command()
+async def stopblindtest(ctx:Context):
+    await finBT(ctx)
 
 
 
